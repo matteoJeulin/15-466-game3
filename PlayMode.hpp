@@ -52,6 +52,10 @@ struct PlayMode : Mode
 	// Platform on which the player is
 	Scene::Transform *player_platform = nullptr;
 
+	bool jumping = false;
+
+	float timer = 0.0f;
+
 	// Checks if the player is colliding with the top of a given platform and applies collision
 	bool collide_platform_top(Scene::Transform *platform);
 

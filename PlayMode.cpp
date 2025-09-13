@@ -168,6 +168,7 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 
 void PlayMode::update(float elapsed)
 {
+	timer += elapsed;
 	// move camera:
 	{
 
@@ -180,9 +181,10 @@ void PlayMode::update(float elapsed)
 			playerSpeed.y = std::max(playerSpeed.y - playerAcceleration * elapsed, -playerMaxSpeed);
 		if (!down.pressed && up.pressed)
 			playerSpeed.y = std::min(playerSpeed.y + playerAcceleration * elapsed, playerMaxSpeed);
-		if (jump.pressed) {
+		if (jump.pressed && !jumping) {
 			playerSpeed.z = jumpSpeed;
 			jump.pressed = false;
+			jumping = true;
 		}
 
 		if (!left.pressed && !right.pressed)
@@ -213,9 +215,18 @@ void PlayMode::update(float elapsed)
 		{
 			if (!collide_platform_side(platform))
 			{
-				collide_platform_top(platform);
+				if (collide_platform_top(platform)) {
+					jumping = false;
+					break;
+				}
+			} else {
+				break;
 			}
 		}
+	}
+
+	if (timer > 3.0f) {
+		timer = 0.0f;
 	}
 }
 
@@ -226,13 +237,14 @@ bool PlayMode::collide_platform_top(Scene::Transform *platform)
 	glm::vec3 platform_pos = platform->position;
 	glm::vec3 platform_size = platform->scale;
 	// Check the x and y coordinates
-	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
-		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
+	if (player_pos.x <= platform_pos.x + platform_size.x && player_pos.x >= platform_pos.x - platform_size.x &&
+		player_pos.y <= platform_pos.y + platform_size.y && player_pos.y >= platform_pos.y - platform_size.y &&
 		// Check if the elevation is correct
-		player_pos.z < platform_pos.z + platform_size.z / 2 && previous_player_pos.z >= platform_pos.z + platform_size.z / 2)
+		player_pos.z < platform_pos.z + platform_size.z && previous_player_pos.z >= platform_pos.z + platform_size.z)
 	{
-		player_pos.z = platform_pos.z + platform_size.z / 2;
+		player_pos.z = platform_pos.z + platform_size.z;
 		playerSpeed.z = 0.0f;
+		player_platform = platform;
 		return true;
 	}
 
@@ -247,38 +259,38 @@ bool PlayMode::collide_platform_side(Scene::Transform *platform)
 	glm::vec3 platform_size = platform->scale;
 
 	// Check the collision with each if the sides individually
-	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
-		player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
-		player_pos.y < platform_pos.y + platform_size.y / 2 && previous_player_pos.y >= platform_pos.y + platform_size.y / 2)
+	if (player_pos.x <= platform_pos.x + platform_size.x && player_pos.x >= platform_pos.x - platform_size.x &&
+		player_pos.z <= platform_pos.z + platform_size.z && player_pos.z >= platform_pos.z - platform_size.z &&
+		player_pos.y < platform_pos.y + platform_size.y && previous_player_pos.y >= platform_pos.y + platform_size.y)
 	{
-		player_pos.y = platform_pos.y + platform_size.y / 2;
+		player_pos.y = platform_pos.y + platform_size.y;
 		playerSpeed.y = 0.0f;
 		return true;
 	}
 
-	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
-		player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
-		player_pos.y < platform_pos.y - platform_size.y / 2 && previous_player_pos.y >= platform_pos.y - platform_size.y / 2)
+	if (player_pos.x <= platform_pos.x + platform_size.x && player_pos.x >= platform_pos.x - platform_size.x &&
+		player_pos.z <= platform_pos.z + platform_size.z && player_pos.z >= platform_pos.z - platform_size.z &&
+		player_pos.y < platform_pos.y - platform_size.y && previous_player_pos.y >= platform_pos.y - platform_size.y)
 	{
-		player_pos.y = platform_pos.y - platform_size.y / 2;
+		player_pos.y = platform_pos.y - platform_size.y;
 		playerSpeed.y = 0.0f;
 		return true;
 	}
 
-	if (player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
-		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
-		player_pos.x < platform_pos.x + platform_size.x / 2 && previous_player_pos.x >= platform_pos.x + platform_size.x / 2)
+	if (player_pos.z <= platform_pos.z + platform_size.z && player_pos.z >= platform_pos.z - platform_size.z &&
+		player_pos.y <= platform_pos.y + platform_size.y && player_pos.y >= platform_pos.y - platform_size.y &&
+		player_pos.x < platform_pos.x + platform_size.x && previous_player_pos.x >= platform_pos.x + platform_size.x)
 	{
-		player_pos.x = platform_pos.x + platform_size.x / 2;
+		player_pos.x = platform_pos.x + platform_size.x;
 		playerSpeed.x = 0.0f;
 		return true;
 	}
 
-	if (player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
-		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
-		player_pos.x < platform_pos.x - platform_size.x / 2 && previous_player_pos.x >= platform_pos.x - platform_size.x / 2)
+	if (player_pos.z <= platform_pos.z + platform_size.z && player_pos.z >= platform_pos.z - platform_size.z &&
+		player_pos.y <= platform_pos.y + platform_size.y && player_pos.y >= platform_pos.y - platform_size.y &&
+		player_pos.x < platform_pos.x - platform_size.x && previous_player_pos.x >= platform_pos.x - platform_size.x)
 	{
-		player_pos.x = platform_pos.x - platform_size.x / 2;
+		player_pos.x = platform_pos.x - platform_size.x;
 		playerSpeed.x = 0.0f;
 		return true;
 	}
