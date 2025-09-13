@@ -5,7 +5,7 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
 	BLENDER = /Applications/Blender.app/Contents/MacOS/Blender -y
 else ifeq ($(UNAME_S),Linux)
-	BLENDER = ../../blender-4.5.2-linux-x64/blender -y
+	BLENDER = /snap/bin/blender -y
 else
 	BLENDER = blender
 endif
@@ -16,12 +16,12 @@ EXPORT_SCENE=export-scene.py
 DIST=../dist
 
 all : \
-	$(DIST)/hexapod.pnct \
-	$(DIST)/hexapod.scene \
+	$(DIST)/level.pnct \
+	$(DIST)/level.scene \
 
 
-$(DIST)/hexapod.scene : hexapod.blend $(EXPORT_SCENE)
+$(DIST)/level.scene : level.blend $(EXPORT_SCENE)
 	$(BLENDER) --background --python $(EXPORT_SCENE) -- '$<':Main '$@'
 
-$(DIST)/hexapod.pnct : hexapod.blend $(EXPORT_MESHES)
+$(DIST)/level.pnct : level.blend $(EXPORT_MESHES)
 	$(BLENDER) --background --python $(EXPORT_MESHES) -- '$<':Main '$@'

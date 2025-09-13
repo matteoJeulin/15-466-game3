@@ -12,123 +12,153 @@
 
 #include <random>
 
-GLuint hexapod_meshes_for_lit_color_texture_program = 0;
-Load< MeshBuffer > hexapod_meshes(LoadTagDefault, []() -> MeshBuffer const * {
-	MeshBuffer const *ret = new MeshBuffer(data_path("hexapod.pnct"));
-	hexapod_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
-	return ret;
-});
+GLuint level_meshes_for_lit_color_texture_program = 0;
+Load<MeshBuffer> level_meshes(LoadTagDefault, []() -> MeshBuffer const *
+							  {
+	MeshBuffer const *ret = new MeshBuffer(data_path("level.pnct"));
+	level_meshes_for_lit_color_texture_program = ret->make_vao_for_program(lit_color_texture_program->program);
+	return ret; });
 
-Load< Scene > hexapod_scene(LoadTagDefault, []() -> Scene const * {
-	return new Scene(data_path("hexapod.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name){
-		Mesh const &mesh = hexapod_meshes->lookup(mesh_name);
+Load<Scene> level_scene(LoadTagDefault, []() -> Scene const *
+						{ return new Scene(data_path("level.scene"), [&](Scene &scene, Scene::Transform *transform, std::string const &mesh_name)
+										   {
+												 Mesh const &mesh = level_meshes->lookup(mesh_name);
 
-		scene.drawables.emplace_back(transform);
-		Scene::Drawable &drawable = scene.drawables.back();
+												 scene.drawables.emplace_back(transform);
+												 Scene::Drawable &drawable = scene.drawables.back();
 
-		drawable.pipeline = lit_color_texture_program_pipeline;
+												 drawable.pipeline = lit_color_texture_program_pipeline;
 
-		drawable.pipeline.vao = hexapod_meshes_for_lit_color_texture_program;
-		drawable.pipeline.type = mesh.type;
-		drawable.pipeline.start = mesh.start;
-		drawable.pipeline.count = mesh.count;
+												 drawable.pipeline.vao = level_meshes_for_lit_color_texture_program;
+												 drawable.pipeline.type = mesh.type;
+												 drawable.pipeline.start = mesh.start;
+												 drawable.pipeline.count = mesh.count; }); });
 
-	});
-});
+Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
+									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
 
-Load< Sound::Sample > dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const * {
-	return new Sound::Sample(data_path("dusty-floor.opus"));
-});
+Load<Sound::Sample> honk_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("honk.wav")); });
 
-
-Load< Sound::Sample > honk_sample(LoadTagDefault, []() -> Sound::Sample const * {
-	return new Sound::Sample(data_path("honk.wav"));
-});
-
-
-PlayMode::PlayMode() : scene(*hexapod_scene) {
-	//get pointers to leg for convenience:
-	for (auto &transform : scene.transforms) {
-		if (transform.name == "Hip.FL") hip = &transform;
-		else if (transform.name == "UpperLeg.FL") upper_leg = &transform;
-		else if (transform.name == "LowerLeg.FL") lower_leg = &transform;
+PlayMode::PlayMode() : scene(*level_scene)
+{
+	// get pointers to leg for convenience:
+	for (auto &transform : scene.transforms)
+	{
+		if (transform.name == "Player")
+			player = &transform;
+		else if (transform.name.substr(0, 4) == "Plat")
+			platforms.emplace_back(&transform);
 	}
-	if (hip == nullptr) throw std::runtime_error("Hip not found.");
-	if (upper_leg == nullptr) throw std::runtime_error("Upper leg not found.");
-	if (lower_leg == nullptr) throw std::runtime_error("Lower leg not found.");
+	if (player == nullptr)
+		throw std::runtime_error("Player not found.");
 
-	hip_base_rotation = hip->rotation;
-	upper_leg_base_rotation = upper_leg->rotation;
-	lower_leg_base_rotation = lower_leg->rotation;
-
-	//get pointer to camera for convenience:
-	if (scene.cameras.size() != 1) throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
+	// get pointer to camera for convenience:
+	if (scene.cameras.size() != 1)
+		throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
-
-	//start music loop playing:
-	// (note: position will be over-ridden in update())
-	leg_tip_loop = Sound::loop_3D(*dusty_floor_sample, 1.0f, get_leg_tip_position(), 10.0f);
 }
 
-PlayMode::~PlayMode() {
+PlayMode::~PlayMode()
+{
 }
 
-bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
+bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
+{
 
-	if (evt.type == SDL_EVENT_KEY_DOWN) {
-		if (evt.key.key == SDLK_ESCAPE) {
+	if (evt.type == SDL_EVENT_KEY_DOWN)
+	{
+		if (evt.key.key == SDLK_ESCAPE)
+		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, false);
 			return true;
-		} else if (evt.key.key == SDLK_A) {
+		}
+		else if (evt.key.key == SDLK_A || evt.key.key == SDLK_LEFT)
+		{
 			left.downs += 1;
 			left.pressed = true;
 			return true;
-		} else if (evt.key.key == SDLK_D) {
+		}
+		else if (evt.key.key == SDLK_D || evt.key.key == SDLK_RIGHT)
+		{
 			right.downs += 1;
 			right.pressed = true;
 			return true;
-		} else if (evt.key.key == SDLK_W) {
+		}
+		else if (evt.key.key == SDLK_W || evt.key.key == SDLK_UP)
+		{
 			up.downs += 1;
 			up.pressed = true;
 			return true;
-		} else if (evt.key.key == SDLK_S) {
+		}
+		else if (evt.key.key == SDLK_S || evt.key.key == SDLK_DOWN)
+		{
 			down.downs += 1;
 			down.pressed = true;
 			return true;
-		} else if (evt.key.key == SDLK_SPACE) {
-			if (honk_oneshot) honk_oneshot->stop();
-			honk_oneshot = Sound::play_3D(*honk_sample, 0.3f, glm::vec3(4.6f, -7.8f, 6.9f)); //hardcoded position of front of car, from blender
 		}
-	} else if (evt.type == SDL_EVENT_KEY_UP) {
-		if (evt.key.key == SDLK_A) {
+		else if (evt.key.key == SDLK_SPACE)
+		{
+			jump.downs += 1;
+			jump.pressed = true;
+			return true;
+		}
+	}
+	else if (evt.type == SDL_EVENT_KEY_UP)
+	{
+		if (evt.key.key == SDLK_A || evt.key.key == SDLK_LEFT)
+		{
 			left.pressed = false;
 			return true;
-		} else if (evt.key.key == SDLK_D) {
+		}
+		else if (evt.key.key == SDLK_D || evt.key.key == SDLK_RIGHT)
+		{
 			right.pressed = false;
 			return true;
-		} else if (evt.key.key == SDLK_W) {
+		}
+		else if (evt.key.key == SDLK_W || evt.key.key == SDLK_UP)
+		{
 			up.pressed = false;
 			return true;
-		} else if (evt.key.key == SDLK_S) {
+		}
+		else if (evt.key.key == SDLK_S || evt.key.key == SDLK_DOWN)
+		{
 			down.pressed = false;
 			return true;
 		}
-	} else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false) {
+		else if (evt.key.key == SDLK_SPACE)
+		{
+			jump.pressed = false;
+			return true;
+		}
+	}
+	else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+	{
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false)
+		{
 			SDL_SetWindowRelativeMouseMode(Mode::window, true);
 			return true;
 		}
-	} else if (evt.type == SDL_EVENT_MOUSE_MOTION) {
-		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true) {
+	}
+	else if (evt.type == SDL_EVENT_MOUSE_BUTTON_DOWN)
+	{
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == false)
+		{
+			SDL_SetWindowRelativeMouseMode(Mode::window, true);
+			return true;
+		}
+	}
+	else if (evt.type == SDL_EVENT_MOUSE_MOTION)
+	{
+		if (SDL_GetWindowRelativeMouseMode(Mode::window) == true)
+		{
 			glm::vec2 motion = glm::vec2(
 				evt.motion.xrel / float(window_size.y),
-				-evt.motion.yrel / float(window_size.y)
-			);
-			camera->transform->rotation = glm::normalize(
-				camera->transform->rotation
-				* glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f))
-				* glm::angleAxis(motion.y * camera->fovy, glm::vec3(1.0f, 0.0f, 0.0f))
-			);
+				evt.motion.yrel / float(window_size.y));
+			// Make sure the rotation does not roll the character by multiplying yaw on one side
+			// and pitch on the other (source: https://stackoverflow.com/questions/46738139/prevent-rotation-around-certain-axis-with-quaternion)
+			player->rotation = glm::normalize(
+				glm::angleAxis(-motion.x * camera->fovy, glm::vec3(0.0f, 0.0f, 1.0f)) * player->rotation * glm::angleAxis(-motion.y * camera->fovy, glm::vec3(0.0f, 1.0f, 0.0f)));
 			return true;
 		}
 	}
@@ -136,110 +166,167 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 	return false;
 }
 
-void PlayMode::update(float elapsed) {
-
-	//slowly rotates through [0,1):
-	wobble += elapsed / 10.0f;
-	wobble -= std::floor(wobble);
-
-	hip->rotation = hip_base_rotation * glm::angleAxis(
-		glm::radians(5.0f * std::sin(wobble * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 1.0f, 0.0f)
-	);
-	upper_leg->rotation = upper_leg_base_rotation * glm::angleAxis(
-		glm::radians(7.0f * std::sin(wobble * 2.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-	lower_leg->rotation = lower_leg_base_rotation * glm::angleAxis(
-		glm::radians(10.0f * std::sin(wobble * 3.0f * 2.0f * float(M_PI))),
-		glm::vec3(0.0f, 0.0f, 1.0f)
-	);
-
-	//move sound to follow leg tip position:
-	leg_tip_loop->set_position(get_leg_tip_position(), 1.0f / 60.0f);
-
-	//move camera:
+void PlayMode::update(float elapsed)
+{
+	// move camera:
 	{
 
-		//combine inputs into a move:
-		constexpr float PlayerSpeed = 30.0f;
-		glm::vec2 move = glm::vec2(0.0f);
-		if (left.pressed && !right.pressed) move.x =-1.0f;
-		if (!left.pressed && right.pressed) move.x = 1.0f;
-		if (down.pressed && !up.pressed) move.y =-1.0f;
-		if (!down.pressed && up.pressed) move.y = 1.0f;
+		// combine inputs into a move:
+		if (left.pressed && !right.pressed)
+			playerSpeed.x = std::max(playerSpeed.x - playerAcceleration * elapsed, -playerMaxSpeed);
+		if (!left.pressed && right.pressed)
+			playerSpeed.x = std::min(playerSpeed.x + playerAcceleration * elapsed, playerMaxSpeed);
+		if (down.pressed && !up.pressed)
+			playerSpeed.y = std::max(playerSpeed.y - playerAcceleration * elapsed, -playerMaxSpeed);
+		if (!down.pressed && up.pressed)
+			playerSpeed.y = std::min(playerSpeed.y + playerAcceleration * elapsed, playerMaxSpeed);
+		if (jump.pressed) {
+			playerSpeed.z = jumpSpeed;
+			jump.pressed = false;
+		}
 
-		//make it so that moving diagonally doesn't go faster:
-		if (move != glm::vec2(0.0f)) move = glm::normalize(move) * PlayerSpeed * elapsed;
+		if (!left.pressed && !right.pressed)
+		{
+			playerSpeed.x -= playerSpeed.x * elapsed * 4;
+		}
+		if (!up.pressed && !down.pressed)
+		{
+			playerSpeed.y -= playerSpeed.y * elapsed * 4;
+		}
 
-		glm::mat4x3 frame = camera->transform->make_parent_from_local();
-		glm::vec3 frame_right = frame[0];
-		//glm::vec3 up = frame[1];
-		glm::vec3 frame_forward = -frame[2];
+		playerSpeed.z -= gravity * elapsed;
 
-		camera->transform->position += move.x * frame_right + move.y * frame_forward;
+		glm::mat4x3 frame = player->make_parent_from_local();
+		glm::vec3 frame_forward = -frame[0];
+		glm::vec3 frame_right = frame[1];
+		// glm::vec3 frame_up = -frame[2];
+
+		frame_forward.z = 0;
+		frame_right.z = 0;
+
+		previous_player_pos = player->position;
+
+		// y-axis is the forward/backward direction and the x-axis is the right/left direction
+		player->position += playerSpeed.x * frame_right * elapsed + playerSpeed.y * frame_forward * elapsed + playerSpeed.z * glm::vec3(0.0f, 0.0f, 1.0f) * elapsed;
+
+		for (Scene::Transform *platform : platforms)
+		{
+			if (!collide_platform_side(platform))
+			{
+				collide_platform_top(platform);
+			}
+		}
 	}
-
-	{ //update listener to camera position:
-		glm::mat4x3 frame = camera->transform->make_parent_from_local();
-		glm::vec3 frame_right = frame[0];
-		glm::vec3 frame_at = frame[3];
-		Sound::listener.set_position_right(frame_at, frame_right, 1.0f / 60.0f);
-	}
-
-	//reset button press counters:
-	left.downs = 0;
-	right.downs = 0;
-	up.downs = 0;
-	down.downs = 0;
 }
 
-void PlayMode::draw(glm::uvec2 const &drawable_size) {
-	//update camera aspect ratio for drawable:
+bool PlayMode::collide_platform_top(Scene::Transform *platform)
+{
+	glm::vec3 &player_pos = player->position;
+
+	glm::vec3 platform_pos = platform->position;
+	glm::vec3 platform_size = platform->scale;
+	// Check the x and y coordinates
+	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
+		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
+		// Check if the elevation is correct
+		player_pos.z < platform_pos.z + platform_size.z / 2 && previous_player_pos.z >= platform_pos.z + platform_size.z / 2)
+	{
+		player_pos.z = platform_pos.z + platform_size.z / 2;
+		playerSpeed.z = 0.0f;
+		return true;
+	}
+
+	return false;
+}
+
+bool PlayMode::collide_platform_side(Scene::Transform *platform)
+{
+	glm::vec3 &player_pos = player->position;
+
+	glm::vec3 platform_pos = platform->position;
+	glm::vec3 platform_size = platform->scale;
+
+	// Check the collision with each if the sides individually
+	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
+		player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
+		player_pos.y < platform_pos.y + platform_size.y / 2 && previous_player_pos.y >= platform_pos.y + platform_size.y / 2)
+	{
+		player_pos.y = platform_pos.y + platform_size.y / 2;
+		playerSpeed.y = 0.0f;
+		return true;
+	}
+
+	if (player_pos.x <= platform_pos.x + platform_size.x / 2 && player_pos.x >= platform_pos.x - platform_size.x / 2 &&
+		player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
+		player_pos.y < platform_pos.y - platform_size.y / 2 && previous_player_pos.y >= platform_pos.y - platform_size.y / 2)
+	{
+		player_pos.y = platform_pos.y - platform_size.y / 2;
+		playerSpeed.y = 0.0f;
+		return true;
+	}
+
+	if (player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
+		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
+		player_pos.x < platform_pos.x + platform_size.x / 2 && previous_player_pos.x >= platform_pos.x + platform_size.x / 2)
+	{
+		player_pos.x = platform_pos.x + platform_size.x / 2;
+		playerSpeed.x = 0.0f;
+		return true;
+	}
+
+	if (player_pos.z <= platform_pos.z + platform_size.z / 2 && player_pos.z >= platform_pos.z - platform_size.z / 2 &&
+		player_pos.y <= platform_pos.y + platform_size.y / 2 && player_pos.y >= platform_pos.y - platform_size.y / 2 &&
+		player_pos.x < platform_pos.x - platform_size.x / 2 && previous_player_pos.x >= platform_pos.x - platform_size.x / 2)
+	{
+		player_pos.x = platform_pos.x - platform_size.x / 2;
+		playerSpeed.x = 0.0f;
+		return true;
+	}
+
+	return false;
+}
+
+void PlayMode::draw(glm::uvec2 const &drawable_size)
+{
+	// update camera aspect ratio for drawable:
 	camera->aspect = float(drawable_size.x) / float(drawable_size.y);
 
-	//set up light type and position for lit_color_texture_program:
-	// TODO: consider using the Light(s) in the scene to do this
+	// set up light type and position for lit_color_texture_program:
+	//  TODO: consider using the Light(s) in the scene to do this
 	glUseProgram(lit_color_texture_program->program);
 	glUniform1i(lit_color_texture_program->LIGHT_TYPE_int, 1);
-	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f,-1.0f)));
+	glUniform3fv(lit_color_texture_program->LIGHT_DIRECTION_vec3, 1, glm::value_ptr(glm::vec3(0.0f, 0.0f, -1.0f)));
 	glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(1.0f, 1.0f, 0.95f)));
 	glUseProgram(0);
 
-	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-	glClearDepth(1.0f); //1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearDepth(1.0f); // 1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS); //this is the default depth comparison function, but FYI you can change it.
+	glDepthFunc(GL_LESS); // this is the default depth comparison function, but FYI you can change it.
 
 	scene.draw(*camera);
 
-	{ //use DrawLines to overlay some text:
+	{ // use DrawLines to overlay some text:
 		glDisable(GL_DEPTH_TEST);
 		float aspect = float(drawable_size.x) / float(drawable_size.y);
 		DrawLines lines(glm::mat4(
 			1.0f / aspect, 0.0f, 0.0f, 0.0f,
 			0.0f, 1.0f, 0.0f, 0.0f,
 			0.0f, 0.0f, 1.0f, 0.0f,
-			0.0f, 0.0f, 0.0f, 1.0f
-		));
+			0.0f, 0.0f, 0.0f, 1.0f));
 
 		constexpr float H = 0.09f;
 		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0x00, 0x00, 0x00, 0x00));
+						glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
+						glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+						glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
 		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
-			glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + + 0.1f * H + ofs, 0.0),
-			glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
-			glm::u8vec4(0xff, 0xff, 0xff, 0x00));
+						glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + +0.1f * H + ofs, 0.0),
+						glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
+						glm::u8vec4(0xff, 0xff, 0xff, 0x00));
 	}
 	GL_ERRORS();
-}
-
-glm::vec3 PlayMode::get_leg_tip_position() {
-	//the vertex position here was read from the model in blender:
-	return lower_leg->make_world_from_local() * glm::vec4(-1.26137f, -11.861f, 0.0f, 1.0f);
 }
