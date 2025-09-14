@@ -166,6 +166,8 @@ int main(int argc, char **argv) {
 						px.a = 0xff;
 					}
 					save_png(filename, glm::uvec2(w,h), data.data(), LowerLeftOrigin);
+				} else if (evt.type == SDL_EVENT_KEY_DOWN && evt.key.key == SDLK_R) {
+					Mode::set_current(std::make_shared< PlayMode >());
 				}
 			}
 			if (!Mode::current) break;

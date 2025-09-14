@@ -43,7 +43,9 @@ struct PlayMode : Mode
 	float jumpSpeed = 10.0f;
 
 	// Gravitational force
-	float gravity = 9.81f;
+	float gravity = 19.62f;
+
+	bool noclip = false;
 
 	glm::vec3 playerSpeed = glm::vec3(0.0f);
 
@@ -62,11 +64,12 @@ struct PlayMode : Mode
 	// Checks if the player is colliding with the side of a given platform and applies collision
 	bool collide_platform_side(Scene::Transform *platform);
 
-	// music coming from the tip of the leg (as a demonstration):
-	std::shared_ptr<Sound::PlayingSample> leg_tip_loop;
+	float bonk_frequency = 6.0f;
+	float bonk_length = 1.5f;
+	bool playing_bonk = false;
 
 	// car honk sound:
-	std::shared_ptr<Sound::PlayingSample> honk_oneshot;
+	std::shared_ptr<Sound::PlayingSample> bonk_oneshot;
 
 	// camera:
 	Scene::Camera *camera = nullptr;
