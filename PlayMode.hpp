@@ -31,13 +31,13 @@ struct PlayMode : Mode
 	Scene scene;
 
 	Scene::Transform *player = nullptr;
+	Scene::Transform *goal = nullptr;
 	std::vector<Scene::Transform *> platforms;
 
-	// Acceleration and max speed of the fish, accounting for the smaller parent node of the mesh
-	const float playerAcceleration = 5.0f;
+	// Acceleration and max speed of the player, accounting for the smaller parent node of the mesh
+	const float playerAcceleration = 7.5f;
 
-	// Player and shark speeds have different units because of their scale in blender
-	float playerMaxSpeed = 10.0f;
+	const float playerMaxSpeed = 10.0f;
 
 	// Player and shark speeds have different units because of their scale in blender
 	float jumpSpeed = 10.0f;
@@ -46,6 +46,7 @@ struct PlayMode : Mode
 	float gravity = 19.62f;
 
 	bool noclip = false;
+	bool won = false;
 
 	glm::vec3 playerSpeed = glm::vec3(0.0f);
 
@@ -57,6 +58,8 @@ struct PlayMode : Mode
 	bool jumping = false;
 
 	float timer = 0.0f;
+
+	glm::vec3 background_colour = glm::vec3(0.0f, 0.0f, 0.0f);
 
 	// Checks if the player is colliding with the top of a given platform and applies collision
 	bool collide_platform_top(Scene::Transform *platform);

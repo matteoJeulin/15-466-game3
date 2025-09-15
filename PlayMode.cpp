@@ -48,7 +48,11 @@ PlayMode::PlayMode() : scene(*level_scene)
 		if (transform.name == "Player")
 			player = &transform;
 		else if (transform.name.substr(0, 4) == "Plat")
+		{
 			platforms.emplace_back(&transform);
+			if (transform.name == "PlatEnd")
+				goal = &transform;
+		}
 	}
 	if (player == nullptr)
 		throw std::runtime_error("Player not found.");
@@ -181,20 +185,21 @@ void PlayMode::update(float elapsed)
 			playerSpeed.y = std::max(playerSpeed.y - playerAcceleration * elapsed, -playerMaxSpeed);
 		if (!down.pressed && up.pressed)
 			playerSpeed.y = std::min(playerSpeed.y + playerAcceleration * elapsed, playerMaxSpeed);
-		if (jump.pressed && !jumping)
+		if (jump.pressed && !jumping && player_platform != nullptr)
 		{
 			playerSpeed.z = jumpSpeed;
 			jump.pressed = false;
 			jumping = true;
 		}
 
-		if (!left.pressed && !right.pressed)
+		// Apply inertia to get the player down to 0 speed.
+		if ((!left.pressed && !right.pressed) || (left.pressed && playerSpeed.x > 0) || (right.pressed && playerSpeed.x < 0))
 		{
-			playerSpeed.x -= playerSpeed.x * elapsed * 4;
+			playerSpeed.x -= playerSpeed.x * elapsed * 10;
 		}
-		if (!up.pressed && !down.pressed)
+		if ((!up.pressed && !down.pressed) || (up.pressed && playerSpeed.y < 0) || (down.pressed && playerSpeed.y > 0))
 		{
-			playerSpeed.y -= playerSpeed.y * elapsed * 4;
+			playerSpeed.y -= playerSpeed.y * elapsed * 10;
 		}
 
 		playerSpeed.z -= gravity * elapsed;
@@ -202,7 +207,6 @@ void PlayMode::update(float elapsed)
 		glm::mat4x3 frame = player->make_parent_from_local();
 		glm::vec3 frame_forward = -frame[0];
 		glm::vec3 frame_right = frame[1];
-		// glm::vec3 frame_up = -frame[2];
 
 		frame_forward.z = 0;
 		frame_right.z = 0;
@@ -217,33 +221,38 @@ void PlayMode::update(float elapsed)
 			player_platform = nullptr;
 			for (Scene::Transform *platform : platforms)
 			{
-				if (!collide_platform_side(platform))
+				collide_platform_side(platform);
+				if (collide_platform_top(platform))
 				{
-					if (collide_platform_top(platform))
-					{
-						jumping = false;
-						break;
-					}
-				}
-				else
-				{
-					break;
+					jumping = false;
 				}
 			}
 		}
+
+		if (player_platform == goal) {
+			won = true;
+			background_colour = glm::vec3(0.0f, 1.0f, 0.0f);
+			timer = 0.0f;
+		}
 	}
 
-	if (timer > bonk_frequency - bonk_length && !playing_bonk)
+	if (timer > bonk_frequency - bonk_length && !won)
 	{
-		playing_bonk = true;
-		bonk_oneshot = Sound::play(*bonk_sample, 0.3f);
+		background_colour += 0.1f * elapsed / bonk_length;
+		if (!playing_bonk)
+		{
+			playing_bonk = true;
+			bonk_oneshot = Sound::play(*bonk_sample, 0.3f);
+		}
 	}
-	if (timer > bonk_frequency)
+	if (timer > bonk_frequency && !won)
 	{
 		timer = 0.0f;
 		playing_bonk = false;
+		background_colour = glm::vec3(0.0f, 0.0f, 0.0f);
 		if (player_platform != nullptr)
 		{
+			player_platform = nullptr;
 			noclip = true;
 		}
 	}
@@ -309,7 +318,7 @@ bool PlayMode::collide_platform_side(Scene::Transform *platform)
 
 	if (player_pos.z <= platform_pos.z + platform_size.z && player_pos.z >= platform_pos.z - platform_size.z &&
 		player_pos.y <= platform_pos.y + platform_size.y && player_pos.y >= platform_pos.y - platform_size.y &&
-		player_pos.x - player_size.x > platform_pos.x - platform_size.x && previous_player_pos.x + player_size.y <= platform_pos.x - platform_size.x)
+		player_pos.x + player_size.x > platform_pos.x - platform_size.x && previous_player_pos.x + player_size.y <= platform_pos.x - platform_size.x)
 	{
 		player_pos.x = platform_pos.x - platform_size.x - player_size.x;
 		playerSpeed.x = 0.0f;
@@ -332,7 +341,7 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 	glUniform3fv(lit_color_texture_program->LIGHT_ENERGY_vec3, 1, glm::value_ptr(glm::vec3(1.0f, 1.0f, 0.95f)));
 	glUseProgram(0);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(background_colour.x, background_colour.y, background_colour.z, 1.0f);
 	glClearDepth(1.0f); // 1.0 is actually the default value to clear the depth buffer to, but FYI you can change it.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
