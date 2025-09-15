@@ -1,8 +1,8 @@
-# (TODO: your game's title)
+# Jump the boom
 
-Author: (TODO: your name)
+Author: Matteo Jeulin (mjeulin)
 
-Design: (TODO: In two sentences or fewer, describe what is new and interesting about your game.)
+Design: This game is a challenging platformer where every jump's timing counts.
 
 Screen Shot:
 
@@ -10,6 +10,7 @@ Screen Shot:
 
 How To Play:
 
-(TODO: describe the controls and (if needed) goals/strategy.)
+The goal of the game is to reach the last platform. The player must not be on the ground when the explosion happens or else they lose.
+The controls are WASD or the arrow keys to move, the mouse to look around, R to restart and M to mute the music.
 
 This game was built with [NEST](NEST.md).

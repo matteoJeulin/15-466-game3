@@ -25,13 +25,14 @@ struct PlayMode : Mode
 	{
 		uint8_t downs = 0;
 		uint8_t pressed = 0;
-	} left, right, down, up, jump;
+	} left, right, down, up, jump, mute;
 
 	// local copy of the game scene (so code can change it during gameplay):
 	Scene scene;
 
 	Scene::Transform *player = nullptr;
 	Scene::Transform *goal = nullptr;
+	Scene::Transform *deathPlane = nullptr;
 	std::vector<Scene::Transform *> platforms;
 
 	// Acceleration and max speed of the player, accounting for the smaller parent node of the mesh
@@ -47,6 +48,9 @@ struct PlayMode : Mode
 
 	bool noclip = false;
 	bool won = false;
+	bool dead = false;
+
+	std::string screen_text = "";
 
 	glm::vec3 playerSpeed = glm::vec3(0.0f);
 
@@ -71,8 +75,15 @@ struct PlayMode : Mode
 	float bonk_length = 1.5f;
 	bool playing_bonk = false;
 
-	// car honk sound:
+	// Sounds:
 	std::shared_ptr<Sound::PlayingSample> bonk_oneshot;
+	std::shared_ptr<Sound::PlayingSample> win_oneshot;
+	std::shared_ptr<Sound::PlayingSample> dead_oneshot;
+	std::shared_ptr<Sound::PlayingSample> music_loop;
+
+	const float default_music_volume = 0.3f;
+	float music_volum = default_music_volume;
+
 
 	// camera:
 	Scene::Camera *camera = nullptr;

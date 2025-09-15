@@ -34,11 +34,17 @@ Load<Scene> level_scene(LoadTagDefault, []() -> Scene const *
 												 drawable.pipeline.start = mesh.start;
 												 drawable.pipeline.count = mesh.count; }); });
 
-Load<Sound::Sample> dusty_floor_sample(LoadTagDefault, []() -> Sound::Sample const *
-									   { return new Sound::Sample(data_path("dusty-floor.opus")); });
+Load<Sound::Sample> music_sample(LoadTagDefault, []() -> Sound::Sample const *
+								 { return new Sound::Sample(data_path("song.wav")); });
 
 Load<Sound::Sample> bonk_sample(LoadTagDefault, []() -> Sound::Sample const *
 								{ return new Sound::Sample(data_path("bonk.wav")); });
+
+Load<Sound::Sample> win_sample(LoadTagDefault, []() -> Sound::Sample const *
+							   { return new Sound::Sample(data_path("win.wav")); });
+
+Load<Sound::Sample> dead_sample(LoadTagDefault, []() -> Sound::Sample const *
+								{ return new Sound::Sample(data_path("dead.wav")); });
 
 PlayMode::PlayMode() : scene(*level_scene)
 {
@@ -47,6 +53,8 @@ PlayMode::PlayMode() : scene(*level_scene)
 	{
 		if (transform.name == "Player")
 			player = &transform;
+		else if (transform.name == "DeathPlane")
+			deathPlane = &transform;
 		else if (transform.name.substr(0, 4) == "Plat")
 		{
 			platforms.emplace_back(&transform);
@@ -56,11 +64,17 @@ PlayMode::PlayMode() : scene(*level_scene)
 	}
 	if (player == nullptr)
 		throw std::runtime_error("Player not found.");
+	if (deathPlane == nullptr)
+		throw std::runtime_error("Death plane not found.");
+	if (goal == nullptr)
+		throw std::runtime_error("Goal not found.");
 
 	// get pointer to camera for convenience:
 	if (scene.cameras.size() != 1)
 		throw std::runtime_error("Expecting scene to have exactly one camera, but it has " + std::to_string(scene.cameras.size()));
 	camera = &scene.cameras.front();
+
+	music_loop = Sound::loop(*music_sample, 0.3f);
 }
 
 PlayMode::~PlayMode()
@@ -107,6 +121,12 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 			jump.pressed = true;
 			return true;
 		}
+		else if (evt.key.key == SDLK_M)
+		{
+			mute.downs += 1;
+			mute.pressed = true;
+			return true;
+		}
 	}
 	else if (evt.type == SDL_EVENT_KEY_UP)
 	{
@@ -133,6 +153,11 @@ bool PlayMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size)
 		else if (evt.key.key == SDLK_SPACE)
 		{
 			jump.pressed = false;
+			return true;
+		}
+		else if (evt.key.key == SDLK_M)
+		{
+			mute.pressed = false;
 			return true;
 		}
 	}
@@ -192,6 +217,20 @@ void PlayMode::update(float elapsed)
 			jumping = true;
 		}
 
+		if (mute.pressed)
+		{
+			float curr_music_volume = music_loop.get()->volume.value;
+
+			if (curr_music_volume != 0.0f)
+			{
+				music_loop.get()->set_volume(0.0f);
+			}
+			else
+			{
+				music_loop.get()->set_volume(default_music_volume);
+			}
+		}
+
 		// Apply inertia to get the player down to 0 speed.
 		if ((!left.pressed && !right.pressed) || (left.pressed && playerSpeed.x > 0) || (right.pressed && playerSpeed.x < 0))
 		{
@@ -229,14 +268,25 @@ void PlayMode::update(float elapsed)
 			}
 		}
 
-		if (player_platform == goal) {
+		if (player_platform == goal && !won)
+		{
 			won = true;
 			background_colour = glm::vec3(0.0f, 1.0f, 0.0f);
+			win_oneshot = Sound::play(*win_sample, 0.3f);
 			timer = 0.0f;
+			screen_text = "You won! Press R to restart.";
+		}
+		if (player->position.z < deathPlane->position.z && !dead)
+		{
+			dead = true;
+			dead_oneshot = Sound::play(*dead_sample, 0.3f);
+			background_colour = glm::vec3(0.5f, 0.0f, 0.0f);
+			timer = 0.0f;
+			screen_text = "You lost. Press R to restart.";
 		}
 	}
 
-	if (timer > bonk_frequency - bonk_length && !won)
+	if (!won && !dead && timer > bonk_frequency - bonk_length)
 	{
 		background_colour += 0.1f * elapsed / bonk_length;
 		if (!playing_bonk)
@@ -245,7 +295,7 @@ void PlayMode::update(float elapsed)
 			bonk_oneshot = Sound::play(*bonk_sample, 0.3f);
 		}
 	}
-	if (timer > bonk_frequency && !won)
+	if (!won && !dead && timer > bonk_frequency)
 	{
 		timer = 0.0f;
 		playing_bonk = false;
@@ -360,12 +410,12 @@ void PlayMode::draw(glm::uvec2 const &drawable_size)
 			0.0f, 0.0f, 0.0f, 1.0f));
 
 		constexpr float H = 0.09f;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text(screen_text,
 						glm::vec3(-aspect + 0.1f * H, -1.0 + 0.1f * H, 0.0),
 						glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 						glm::u8vec4(0x00, 0x00, 0x00, 0x00));
 		float ofs = 2.0f / drawable_size.y;
-		lines.draw_text("Mouse motion rotates camera; WASD moves; escape ungrabs mouse",
+		lines.draw_text(screen_text,
 						glm::vec3(-aspect + 0.1f * H + ofs, -1.0 + +0.1f * H + ofs, 0.0),
 						glm::vec3(H, 0.0f, 0.0f), glm::vec3(0.0f, H, 0.0f),
 						glm::u8vec4(0xff, 0xff, 0xff, 0x00));

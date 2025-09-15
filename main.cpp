@@ -67,8 +67,8 @@ int main(int argc, char **argv) {
 
 	//create window:
 	Mode::window = SDL_CreateWindow(
-		"gp25 game3: require sound", //TODO: remember to set a title for your game!
-		1280, 720, //TODO: modify window size if you'd like
+		"Jump the boom", //TODO: remember to set a title for your game!
+		1920, 1080, //TODO: modify window size if you'd like
 		SDL_WINDOW_OPENGL
 		| SDL_WINDOW_RESIZABLE //uncomment to allow resizing
 		| SDL_WINDOW_HIGH_PIXEL_DENSITY //uncomment for full resolution on high-DPI screens
@@ -167,6 +167,7 @@ int main(int argc, char **argv) {
 					}
 					save_png(filename, glm::uvec2(w,h), data.data(), LowerLeftOrigin);
 				} else if (evt.type == SDL_EVENT_KEY_DOWN && evt.key.key == SDLK_R) {
+					static_cast<PlayMode *>(Mode::current.get())->music_loop.get()->stop();
 					Mode::set_current(std::make_shared< PlayMode >());
 				}
 			}
