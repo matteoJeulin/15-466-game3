@@ -248,7 +248,10 @@ void PlayMode::update(float elapsed)
 		glm::vec3 frame_right = frame[1];
 
 		frame_forward.z = 0;
+		frame_forward = glm::normalize(frame_forward);
 		frame_right.z = 0;
+		frame_right = glm::normalize(frame_right);
+
 
 		previous_player_pos = player->position;
 
